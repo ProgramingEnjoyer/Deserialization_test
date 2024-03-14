@@ -24,8 +24,6 @@ import wave_test.SineWaveData;
 
 public class MainActivity extends AppCompatActivity {
 
-    private TextView textViewData;
-
     private final ActivityResultLauncher<Intent> openDocument = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -39,7 +37,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        textViewData = findViewById(R.id.textViewData);
 
         if (!hasManageExternalStoragePermission()) {
             requestManageExternalStoragePermission();
@@ -90,8 +87,10 @@ public class MainActivity extends AppCompatActivity {
                 dataString.append("Time: ").append(data.getTime())
                         .append(", Sine Value: ").append(data.getSineValue()).append("\n");
             }
+            SineWaveView sineWaveView = findViewById(R.id.sineWaveView);
+            sineWaveView.setDataList(dataList);
 
-            textViewData.setText(dataString.toString());
+
         } catch (FileNotFoundException e) {
             Log.e("MainActivity", "File not found", e);
             Toast.makeText(getApplicationContext(), "File not found", Toast.LENGTH_SHORT).show();
