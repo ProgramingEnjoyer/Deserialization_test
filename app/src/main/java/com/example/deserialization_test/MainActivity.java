@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -21,6 +22,7 @@ import java.io.ObjectInputStream;
 import java.util.List;
 
 import wave_test.SineWaveData;
+import android.widget.Button;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,6 +40,12 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        Button loadDataButton = findViewById(R.id.loadDataButton);
+        loadDataButton.setOnClickListener(v -> loadData());
+
+    }
+
+    private void loadData() {
         if (!hasManageExternalStoragePermission()) {
             requestManageExternalStoragePermission();
         } else {
@@ -45,7 +53,6 @@ public class MainActivity extends AppCompatActivity {
             openFilePicker();
         }
     }
-
     private boolean hasManageExternalStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             return Environment.isExternalStorageManager();
