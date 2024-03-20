@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
 import android.util.Log;
+import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -21,10 +22,9 @@ import java.io.ObjectInputStream;
 import java.util.List;
 
 import wave_test.SineWaveData;
+import android.widget.Button;
 
 public class MainActivity extends AppCompatActivity {
-
-    private TextView textViewData;
 
     private final ActivityResultLauncher<Intent> openDocument = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -39,8 +39,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        textViewData = findViewById(R.id.textViewData);
 
+        Button loadDataButton = findViewById(R.id.loadDataButton);
+        loadDataButton.setOnClickListener(v -> loadData());
+
+    }
+
+    private void loadData() {
         if (!hasManageExternalStoragePermission()) {
             requestManageExternalStoragePermission();
         } else {
@@ -48,7 +53,6 @@ public class MainActivity extends AppCompatActivity {
             openFilePicker();
         }
     }
-
     private boolean hasManageExternalStoragePermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             return Environment.isExternalStorageManager();
@@ -90,8 +94,10 @@ public class MainActivity extends AppCompatActivity {
                 dataString.append("Time: ").append(data.getTime())
                         .append(", Sine Value: ").append(data.getSineValue()).append("\n");
             }
+            SineWaveView sineWaveView = findViewById(R.id.sineWaveView);
+            sineWaveView.setDataList(dataList);
 
-            textViewData.setText(dataString.toString());
+
         } catch (FileNotFoundException e) {
             Log.e("MainActivity", "File not found", e);
             Toast.makeText(getApplicationContext(), "File not found", Toast.LENGTH_SHORT).show();
