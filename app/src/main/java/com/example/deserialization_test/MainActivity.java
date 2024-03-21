@@ -1,5 +1,6 @@
 package com.example.deserialization_test;
 import android.content.pm.PackageManager;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
 
@@ -25,6 +26,7 @@ import android.os.Environment;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -41,7 +43,6 @@ import android.widget.Button;
 
 public class MainActivity extends AppCompatActivity {
 
-    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -55,20 +56,32 @@ public class MainActivity extends AppCompatActivity {
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         checkBluetoothSupport();
 
+        //List Initialisation
+        ListView deviceList = findViewById(R.id.device_list);
+        // 只初始化一次
+        devicesArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
+        deviceList.setAdapter(devicesArrayAdapter);
+        deviceList.setOnItemClickListener((parent, view, position, id) -> {
+            BluetoothDevice selectedDevice = bluetoothDevices.get(position);
+            // 连接设备的代码
+            ConnectThread connectThread = new ConnectThread(selectedDevice);
+            connectThread.start();
+        });
+
         BluetoothButton.setOnClickListener(v -> {
             if (bluetoothAdapter.isEnabled()) {
+                deviceList.setVisibility(View.VISIBLE);
                 discoverDevices();
             } else {
                 Toast.makeText(MainActivity.this, "Bluetooth is not enabled", Toast.LENGTH_SHORT).show();
             }
         });
 
-        // Prepare list adapter for discovered devices
-        devicesArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
         // Register for broadcasts when a device is discovered
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
         registerReceiver(receiver, filter);
     }
+
 
     // Load data functions
 
@@ -178,11 +191,16 @@ private BluetoothAdapter bluetoothAdapter;
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 if (!bluetoothDevices.contains(device)) {
                     bluetoothDevices.add(device);
-                    devicesArrayAdapter.add(device.getName() + "\n" + device.getAddress());
+                    String deviceInfo = device.getName() + "\n" + device.getAddress();
+                    devicesArrayAdapter.add(deviceInfo);
+                    Log.d("MainActivity", "Device added: " + deviceInfo);
+                    devicesArrayAdapter.notifyDataSetChanged();
                 }
             }
         }
     };
+
+
 
     @SuppressLint("MissingPermission")
     private void discoverDevices() {
@@ -194,22 +212,24 @@ private BluetoothAdapter bluetoothAdapter;
     }
 
     private void showDeviceListDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Select a device");
-
-        builder.setAdapter(devicesArrayAdapter, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                BluetoothDevice device = bluetoothDevices.get(which);
-                // Attempt to connect to the device
-                ConnectThread connectThread = new ConnectThread(device);
-                connectThread.start();
-            }
-        });
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        View dialogView = getLayoutInflater().inflate(R.layout.listview, null);
+        builder.setView(dialogView);
 
         AlertDialog dialog = builder.create();
+
+        ListView listViewDevices = dialogView.findViewById(R.id.listViewDevices);
+        listViewDevices.setAdapter(devicesArrayAdapter);
+        listViewDevices.setOnItemClickListener((parent, view, position, id) -> {
+            BluetoothDevice selectedDevice = bluetoothDevices.get(position);
+            ConnectThread connectThread = new ConnectThread(selectedDevice);
+            connectThread.start();
+            dialog.dismiss(); // 设备选择后关闭弹窗
+        });
+
         dialog.show();
     }
+
 
     @Override
     protected void onDestroy() {
@@ -267,6 +287,7 @@ private BluetoothAdapter bluetoothAdapter;
             }
         }
     }
+
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
@@ -279,5 +300,6 @@ private BluetoothAdapter bluetoothAdapter;
             }
         }
     }
+
 
 }

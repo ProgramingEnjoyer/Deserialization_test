@@ -11,8 +11,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="@dimen/bluetooth_dia_paddingH"
-        android:layout_marginStart="@dimen/bluetooth_dia_paddingH">
+
+      >
 
         <ImageView
             android:id="@+id/bluetoothLogo"
