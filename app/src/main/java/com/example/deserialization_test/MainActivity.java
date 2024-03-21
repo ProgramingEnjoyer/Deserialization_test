@@ -1,10 +1,23 @@
 package com.example.deserialization_test;
+import android.content.pm.PackageManager;
+import android.widget.ArrayAdapter;
+import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,12 +32,45 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import wave_test.SineWaveData;
 import android.widget.Button;
 
 public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        //Load data Initialisation
+        Button loadDataButton = findViewById(R.id.loadDataButton);
+        loadDataButton.setOnClickListener(v -> loadData());
+
+        //BT Initialisation
+        Button BluetoothButton = findViewById(R.id.BluetoothButton);
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+        checkBluetoothSupport();
+
+        BluetoothButton.setOnClickListener(v -> {
+            if (bluetoothAdapter.isEnabled()) {
+                discoverDevices();
+            } else {
+                Toast.makeText(MainActivity.this, "Bluetooth is not enabled", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // Prepare list adapter for discovered devices
+        devicesArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
+        // Register for broadcasts when a device is discovered
+        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+        registerReceiver(receiver, filter);
+    }
+
+    // Load data functions
 
     private final ActivityResultLauncher<Intent> openDocument = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
@@ -34,17 +80,6 @@ public class MainActivity extends AppCompatActivity {
                     loadData(uri);
                 }
             });
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        Button loadDataButton = findViewById(R.id.loadDataButton);
-        loadDataButton.setOnClickListener(v -> loadData());
-
-    }
-
     private void loadData() {
         if (!hasManageExternalStoragePermission()) {
             requestManageExternalStoragePermission();
@@ -112,4 +147,137 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(getApplicationContext(), "Error loading data", Toast.LENGTH_SHORT).show();
         }
     }
+
+
+//Bluetooth Connection
+private BluetoothAdapter bluetoothAdapter;
+    private static final int REQUEST_BLUETOOTH_SCAN_PERMISSION = 1;
+    private final ArrayList<BluetoothDevice> bluetoothDevices = new ArrayList<>();
+    private ArrayAdapter<String> devicesArrayAdapter;
+    private static final int REQUEST_ENABLE_BT = 1;
+    private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
+    private static final String TAG = "BluetoothConnection";
+
+
+    @SuppressLint("MissingPermission")
+    private void checkBluetoothSupport() {
+        if (bluetoothAdapter == null) {
+            Toast.makeText(this, "Bluetooth is not supported on this device", Toast.LENGTH_SHORT).show();
+            finish(); // End application
+        } else if (!bluetoothAdapter.isEnabled()) {
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+        }
+    }
+
+    private final BroadcastReceiver receiver = new BroadcastReceiver() {
+        @SuppressLint("MissingPermission")
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                if (!bluetoothDevices.contains(device)) {
+                    bluetoothDevices.add(device);
+                    devicesArrayAdapter.add(device.getName() + "\n" + device.getAddress());
+                }
+            }
+        }
+    };
+
+    @SuppressLint("MissingPermission")
+    private void discoverDevices() {
+        if (bluetoothAdapter.isDiscovering()) {
+            bluetoothAdapter.cancelDiscovery();
+        }
+        bluetoothAdapter.startDiscovery();
+        showDeviceListDialog();
+    }
+
+    private void showDeviceListDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Select a device");
+
+        builder.setAdapter(devicesArrayAdapter, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                BluetoothDevice device = bluetoothDevices.get(which);
+                // Attempt to connect to the device
+                ConnectThread connectThread = new ConnectThread(device);
+                connectThread.start();
+            }
+        });
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(receiver);
+    }
+
+    private class ConnectThread extends Thread {
+        private final BluetoothSocket mmSocket;
+
+        @SuppressLint("MissingPermission")
+        public ConnectThread(BluetoothDevice device) {
+            BluetoothSocket tmp = null;
+            try {
+                tmp = device.createRfcommSocketToServiceRecord(MY_UUID);
+            } catch (IOException e) {
+                Log.e(TAG, "Socket's create() method failed", e);
+            }
+            mmSocket = tmp;
+        }
+
+        @SuppressLint("MissingPermission")
+        public void run() {
+            bluetoothAdapter.cancelDiscovery();
+            try {
+                mmSocket.connect();
+                // Connection was successful. You can now manage your connection (e.g., perform I/O) here.
+                // This could include starting another thread to manage I/O or passing the socket to another service.
+            } catch (IOException connectException) {
+                try {
+                    mmSocket.close();
+                } catch (IOException closeException) {
+                    Log.e(TAG, "Could not close the client socket", closeException);
+                }
+                return;
+            }
+
+            // Manage the connection in a separate method.
+            manageConnectedSocket(mmSocket);
+        }
+
+        private void manageConnectedSocket(BluetoothSocket mmSocket) {
+            // Once a connection has been made, this method is responsible for managing the connection.
+            // This could involve setting up streams to read from and write to the socket,
+            // and starting a separate thread or service to perform read/write operations.
+            // Note: It's essential to perform I/O operations on a separate thread from the UI to avoid freezing the app.
+        }
+
+        // Closes the client socket and causes the thread to finish.
+        public void cancel() {
+            try {
+                mmSocket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Could not close the client socket", e);
+            }
+        }
+    }
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_BLUETOOTH_SCAN_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // 权限被授予，可以继续蓝牙扫描
+            } else {
+                // 权限被拒绝，向用户解释为什么需要这个权限
+                Toast.makeText(this, "Bluetooth scan permission is required to discover devices", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
 }

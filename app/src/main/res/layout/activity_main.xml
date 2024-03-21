@@ -23,4 +23,13 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"/>
 
+    <Button
+        android:id="@+id/BluetoothButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Bluetooth"
+        app:layout_constraintStart_toEndOf="@id/loadDataButton"
+        app:layout_constraintTop_toTopOf="@id/loadDataButton"
+        app:layout_constraintBottom_toBottomOf="@id/loadDataButton"/>
+
 </androidx.constraintlayout.widget.ConstraintLayout>
