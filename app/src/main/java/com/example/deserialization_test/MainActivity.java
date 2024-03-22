@@ -1,5 +1,6 @@
 package com.example.deserialization_test;
 import android.content.pm.PackageManager;
+import android.view.LayoutInflater;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
@@ -41,37 +42,29 @@ import java.util.UUID;
 import wave_test.SineWaveData;
 import android.widget.Button;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity{
 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        //Load data Initialisation
+        // Load data Initialisation
         Button loadDataButton = findViewById(R.id.loadDataButton);
         loadDataButton.setOnClickListener(v -> loadData());
 
-        //BT Initialisation
+        // BT Initialisation
         Button BluetoothButton = findViewById(R.id.BluetoothButton);
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         checkBluetoothSupport();
 
-        //List Initialisation
-        ListView deviceList = findViewById(R.id.device_list);
-        // 只初始化一次
+        // 初始化 ArrayAdapter
         devicesArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
-        deviceList.setAdapter(devicesArrayAdapter);
-        deviceList.setOnItemClickListener((parent, view, position, id) -> {
-            BluetoothDevice selectedDevice = bluetoothDevices.get(position);
-            // 连接设备的代码
-            ConnectThread connectThread = new ConnectThread(selectedDevice);
-            connectThread.start();
-        });
 
+        // 当蓝牙按钮被点击时显示设备列表的弹窗
         BluetoothButton.setOnClickListener(v -> {
             if (bluetoothAdapter.isEnabled()) {
-                deviceList.setVisibility(View.VISIBLE);
                 discoverDevices();
+                showDeviceListDialog(); // 显示带有设备列表的弹窗
             } else {
                 Toast.makeText(MainActivity.this, "Bluetooth is not enabled", Toast.LENGTH_SHORT).show();
             }
@@ -81,6 +74,7 @@ public class MainActivity extends AppCompatActivity {
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
         registerReceiver(receiver, filter);
     }
+
 
 
     // Load data functions
@@ -163,13 +157,22 @@ public class MainActivity extends AppCompatActivity {
 
 
 //Bluetooth Connection
-private BluetoothAdapter bluetoothAdapter;
+    private BluetoothAdapter bluetoothAdapter;
+
+    private BluetoothSocket bluetoothSocket = null;
     private static final int REQUEST_BLUETOOTH_SCAN_PERMISSION = 1;
     private final ArrayList<BluetoothDevice> bluetoothDevices = new ArrayList<>();
     private ArrayAdapter<String> devicesArrayAdapter;
     private static final int REQUEST_ENABLE_BT = 1;
     private static final UUID MY_UUID = UUID.fromString("00001101-0000-1000-8000-00805f9b34fb");
     private static final String TAG = "BluetoothConnection";
+    private BluetoothDevice selectedBluetoothDevice;
+
+
+    // UI of BT connection & disconnection
+    private Button btnConnect, btnCancel;
+    private TextView btDeviceTextView;
+    private boolean isConnected = false;
 
 
     @SuppressLint("MissingPermission")
@@ -189,17 +192,56 @@ private BluetoothAdapter bluetoothAdapter;
             String action = intent.getAction();
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                if (!bluetoothDevices.contains(device)) {
-                    bluetoothDevices.add(device);
-                    String deviceInfo = device.getName() + "\n" + device.getAddress();
-                    devicesArrayAdapter.add(deviceInfo);
-                    Log.d("MainActivity", "Device added: " + deviceInfo);
-                    devicesArrayAdapter.notifyDataSetChanged();
+                // 检查设备是否是非BLE设备且已经配对
+                if (device.getType() != BluetoothDevice.DEVICE_TYPE_LE && device.getBondState() == BluetoothDevice.BOND_BONDED) {
+                    if (!bluetoothDevices.contains(device)) {
+                        bluetoothDevices.add(device);
+                        String deviceInfo = device.getName() + "\n" + device.getAddress();
+                        devicesArrayAdapter.add(deviceInfo);
+                        Log.d("MainActivity", "Paired non-BLE device added: " + deviceInfo);
+                        devicesArrayAdapter.notifyDataSetChanged();
+                    }
                 }
             }
         }
     };
 
+    private void setFilter() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED);
+        filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
+        this.registerReceiver(mReceiver, filter);
+    }
+
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        @SuppressLint("MissingPermission")
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+
+            if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
+                // 设备已连接
+                Toast.makeText(context, device.getName() + " is connected", Toast.LENGTH_LONG).show();
+            } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
+                // 设备已断开
+                Toast.makeText(context, device.getName() + " is disconnected", Toast.LENGTH_LONG).show();
+                // 更新UI
+                runOnUiThread(() -> {
+                    // 这里假设btnConnect和btDeviceTextView已经在showDeviceListDialog中初始化
+                    isConnected = false;
+                    selectedBluetoothDevice = null; // 如果不再跟踪断开连接的设备
+                    // 可以选择不重置selectedBluetoothDevice，这样用户重新打开对话框时仍然显示之前选中的设备
+
+                    // 这里需要确保这些UI组件已经初始化了
+                    if(btnConnect != null && btDeviceTextView != null) {
+                        btnConnect.setText("Connect");
+                        btDeviceTextView.setText("Please select a device");
+                    }
+                });
+            }
+        }
+    };
 
 
     @SuppressLint("MissingPermission")
@@ -208,34 +250,65 @@ private BluetoothAdapter bluetoothAdapter;
             bluetoothAdapter.cancelDiscovery();
         }
         bluetoothAdapter.startDiscovery();
-        showDeviceListDialog();
     }
 
+    @SuppressLint("MissingPermission")
     private void showDeviceListDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-        View dialogView = getLayoutInflater().inflate(R.layout.listview, null);
+        View dialogView = LayoutInflater.from(MainActivity.this).inflate(R.layout.bsheet_bluetooth, null);
         builder.setView(dialogView);
+
+        btnConnect = dialogView.findViewById(R.id.bt_connect);
+        btnCancel = dialogView.findViewById(R.id.bt_cancel);
+        btDeviceTextView = dialogView.findViewById(R.id.btDevice);
+
+        // 根据当前状态更新文本视图
+        if (isConnected && selectedBluetoothDevice != null) {
+            btDeviceTextView.setText("Connected device: " + selectedBluetoothDevice.getName());
+        } else if (selectedBluetoothDevice != null) {
+            btDeviceTextView.setText("Selected device: " + selectedBluetoothDevice.getName());
+        } else {
+            btDeviceTextView.setText("Please select a device");
+        }
+
+        // 更新连接/断开按钮文本
+        btnConnect.setText(isConnected ? "Disconnect" : "Connect");
 
         AlertDialog dialog = builder.create();
 
-        ListView listViewDevices = dialogView.findViewById(R.id.listViewDevices);
-        listViewDevices.setAdapter(devicesArrayAdapter);
-        listViewDevices.setOnItemClickListener((parent, view, position, id) -> {
-            BluetoothDevice selectedDevice = bluetoothDevices.get(position);
-            ConnectThread connectThread = new ConnectThread(selectedDevice);
-            connectThread.start();
-            dialog.dismiss(); // 设备选择后关闭弹窗
+        ListView listView = dialogView.findViewById(R.id.device_list);
+        listView.setAdapter(devicesArrayAdapter);
+        listView.setOnItemClickListener((parent, view, position, id) -> {
+            selectedBluetoothDevice = bluetoothDevices.get(position);
+            btDeviceTextView.setText("Selected device: " + selectedBluetoothDevice.getName());
         });
 
+        btnConnect.setOnClickListener(v -> {
+            if (isConnected) {
+                new DisconnectThread().start();
+            } else {
+                if (selectedBluetoothDevice != null) {
+                    new ConnectThread(selectedBluetoothDevice).start();
+                }
+            }
+        });
+
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
+
+
 
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // 注销发现设备的广播接收器
         unregisterReceiver(receiver);
+        // 注销蓝牙连接状态变化的广播接收器
+        unregisterReceiver(mReceiver);
     }
+
 
     private class ConnectThread extends Thread {
         private final BluetoothSocket mmSocket;
@@ -256,37 +329,54 @@ private BluetoothAdapter bluetoothAdapter;
             bluetoothAdapter.cancelDiscovery();
             try {
                 mmSocket.connect();
-                // Connection was successful. You can now manage your connection (e.g., perform I/O) here.
-                // This could include starting another thread to manage I/O or passing the socket to another service.
+                bluetoothSocket = mmSocket; // 保存对socket的引用以便以后使用
+
+                // 更新UI以反映连接状态
+                runOnUiThread(() -> {
+                    if(btnConnect != null && btDeviceTextView != null) {
+                        btnConnect.setText("Disconnect");
+                        btDeviceTextView.setText("Connected device: " + selectedBluetoothDevice.getName());
+                        isConnected = true; // 更新连接状态
+                    }
+                });
+                // Connection was successful. You can now manage your connection.
+
             } catch (IOException connectException) {
+                // 连接失败的处理
                 try {
                     mmSocket.close();
                 } catch (IOException closeException) {
                     Log.e(TAG, "Could not close the client socket", closeException);
                 }
-                return;
             }
-
-            // Manage the connection in a separate method.
-            manageConnectedSocket(mmSocket);
         }
 
-        private void manageConnectedSocket(BluetoothSocket mmSocket) {
-            // Once a connection has been made, this method is responsible for managing the connection.
-            // This could involve setting up streams to read from and write to the socket,
-            // and starting a separate thread or service to perform read/write operations.
-            // Note: It's essential to perform I/O operations on a separate thread from the UI to avoid freezing the app.
-        }
+    }
 
-        // Closes the client socket and causes the thread to finish.
-        public void cancel() {
+
+
+    private class DisconnectThread extends Thread {   //disconnect logic
+        public void run() {
             try {
-                mmSocket.close();
+                if (bluetoothSocket != null) {
+                    bluetoothSocket.close();
+                    bluetoothSocket = null;
+                    runOnUiThread(() -> {
+                        if(btnConnect != null && btDeviceTextView != null) {
+                            btnConnect.setText("Connect");
+                            btDeviceTextView.setText("Please select a device");
+                            isConnected = false; // 更新连接状态
+                        }
+                    });
+                }
             } catch (IOException e) {
                 Log.e(TAG, "Could not close the client socket", e);
             }
         }
+
     }
+
+
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
