@@ -31,9 +31,12 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +44,9 @@ import java.util.UUID;
 
 import wave_test.SineWaveData;
 import android.widget.Button;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity{
 
@@ -310,7 +316,7 @@ public class MainActivity extends AppCompatActivity{
     }
 
 
-    private class ConnectThread extends Thread {
+    private class ConnectThread extends Thread { //used to establish connection
         private final BluetoothSocket mmSocket;
 
         @SuppressLint("MissingPermission")
@@ -330,7 +336,7 @@ public class MainActivity extends AppCompatActivity{
             try {
                 mmSocket.connect();
                 bluetoothSocket = mmSocket; // 保存对socket的引用以便以后使用
-
+                manageConnectedSocket(mmSocket);
                 // 更新UI以反映连接状态
                 runOnUiThread(() -> {
                     if(btnConnect != null && btDeviceTextView != null) {
@@ -353,6 +359,72 @@ public class MainActivity extends AppCompatActivity{
 
     }
 
+    private void manageConnectedSocket(BluetoothSocket socket) {
+        // 传递socket到一个新的线程，负责管理连接
+        ConnectedThread connectedThread = new ConnectedThread(socket);
+        connectedThread.start();
+        // 可以在这里保存connectedThread的引用，以便于后续发送数据
+    }
+
+    private class ConnectedThread extends Thread { //used to receive data after connection
+        private final BluetoothSocket mmSocket;
+        private final InputStream mmInStream;
+
+        public ConnectedThread(BluetoothSocket socket) {
+            mmSocket = socket;
+            InputStream tmpIn = null;
+
+            // 获取蓝牙socket的输入流
+            try {
+                tmpIn = socket.getInputStream();
+            } catch (IOException e) {
+                Log.e(TAG, "Error occurred when creating input stream", e);
+            }
+
+            mmInStream = tmpIn;
+        }
+
+        public void run() {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(mmInStream));
+            while (true) {
+                try {
+                    // 读取输入流的下一行
+                    String receivedData = reader.readLine();
+                    if (receivedData != null && !receivedData.isEmpty()) {
+                        // 在这里，我们假设receivedData是JSON格式的字符串
+                        // 使用JSONObject进行解析，然后创建SineWaveData对象
+                        JSONObject json = new JSONObject(receivedData);
+                        SineWaveData data = new SineWaveData(json.getDouble("time"), json.getDouble("value"));
+
+                        // 更新UI（请记住，在UI线程上运行此操作）
+                        runOnUiThread(() -> updateGraph(data));
+                    }
+                } catch (IOException e) {
+                    Log.d(TAG, "Input stream was disconnected", e);
+                    break; // 退出循环，结束线程
+                } catch (JSONException e) {
+                    Log.e(TAG, "Failed to parse data", e);
+                }
+            }
+        }
+
+        // 调用此方法来关闭线程
+        public void cancel() {
+            try {
+                mmSocket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Could not close the connect socket", e);
+            }
+        }
+    }
+
+    // 在UI线程上调用此方法来更新图表
+    private void updateGraph(SineWaveData data) {
+        SineWaveView sineWaveView = findViewById(R.id.sineWaveView);
+        sineWaveView.addData(data); // 假设SineWaveView有一个addData方法来更新图表
+    }
+
+// 其他 MainActivity 方法...
 
 
     private class DisconnectThread extends Thread {   //disconnect logic

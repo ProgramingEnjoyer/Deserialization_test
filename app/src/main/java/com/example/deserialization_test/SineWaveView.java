@@ -6,10 +6,12 @@ import android.util.AttributeSet;
 import android.view.View;
 import wave_test.SineWaveData;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class SineWaveView extends View {
-    private List<SineWaveData> dataList;
+    private static final int MAX_DATA_SIZE = 100;
+    private List<SineWaveData> dataList = new ArrayList<>(MAX_DATA_SIZE);
     private Paint paint = new Paint();
 
     public SineWaveView(Context context, AttributeSet attrs) {
@@ -28,7 +30,14 @@ public class SineWaveView extends View {
         invalidate(); // 重新绘制视图
     }
 
-
+    public void addData(SineWaveData data) {
+        // 如果数据列表超过最大大小，移除最旧的数据点
+        if (dataList.size() == MAX_DATA_SIZE) {
+            dataList.remove(0);
+        }
+        dataList.add(data);
+        invalidate(); // 通知视图重新绘制
+    }
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -48,7 +57,8 @@ public class SineWaveView extends View {
 
         // 计算缩放因子以适应绘图区域
         float scaleX = drawingWidth / (dataList.size() - 1); // 横向缩放因子，确保所有点横向铺满整个屏幕
-        float scaleY = drawingHeight / 2; // 纵向缩放因子，考虑到正弦波的最大值为1，最小值为-1
+        float maxYValue = 50; // 定义sineValue的最大值
+        float scaleY = drawingHeight / (2 * maxYValue); // 纵向缩放因子，考虑到正弦波的最大值为1，最小值为-1
 
         float lastX = -1;
         float lastY = -1;
