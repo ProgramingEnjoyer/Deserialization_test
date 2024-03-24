@@ -1,5 +1,6 @@
 package com.example.deserialization_test;
 import android.content.pm.PackageManager;
+import android.os.Handler;
 import android.view.LayoutInflater;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -58,19 +59,19 @@ public class MainActivity extends AppCompatActivity{
         Button loadDataButton = findViewById(R.id.loadDataButton);
         loadDataButton.setOnClickListener(v -> loadData());
 
-        // BT Initialisation
+        // BT Connection Initialisation
         Button BluetoothButton = findViewById(R.id.BluetoothButton);
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         checkBluetoothSupport();
 
-        // 初始化 ArrayAdapter
+        // Device list Initialisation
         devicesArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
 
-        // 当蓝牙按钮被点击时显示设备列表的弹窗
+        // When BT is clicked, showdevicedialog
         BluetoothButton.setOnClickListener(v -> {
             if (bluetoothAdapter.isEnabled()) {
                 discoverDevices();
-                showDeviceListDialog(); // 显示带有设备列表的弹窗
+                showDeviceListDialog();
             } else {
                 Toast.makeText(MainActivity.this, "Bluetooth is not enabled", Toast.LENGTH_SHORT).show();
             }
@@ -79,12 +80,33 @@ public class MainActivity extends AppCompatActivity{
         // Register for broadcasts when a device is discovered
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
         registerReceiver(receiver, filter);
+
+        // Timed task for graphupdate
+        updateTask = new Runnable() {
+            @Override
+            public void run() {
+                // New data
+                if (hasNewData) {
+                    updateGraph(lastData);
+                    hasNewData = false; // Reset flag
+                } else {
+                    // No new data
+                    if (lastData != null) {
+                        lastData.setTime(lastData.getTime() + 1000); // No updata but time moves on
+                        updateGraph(lastData);
+                    }
+                }
+                // Update per second
+                handler.postDelayed(this, 1000);
+            }
+        };
+        handler.postDelayed(updateTask, 1000);
+
     }
 
 
 
     // Load data functions
-
     private final ActivityResultLauncher<Intent> openDocument = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -94,6 +116,7 @@ public class MainActivity extends AppCompatActivity{
                 }
             });
     private void loadData() {
+        // Load data from .ser file in phone
         if (!hasManageExternalStoragePermission()) {
             requestManageExternalStoragePermission();
         } else {
@@ -162,7 +185,7 @@ public class MainActivity extends AppCompatActivity{
     }
 
 
-//Bluetooth Connection
+    // Bluetooth Connection
     private BluetoothAdapter bluetoothAdapter;
 
     private BluetoothSocket bluetoothSocket = null;
@@ -175,7 +198,7 @@ public class MainActivity extends AppCompatActivity{
     private BluetoothDevice selectedBluetoothDevice;
 
 
-    // UI of BT connection & disconnection
+    // UI update for BT connection & disconnection
     private Button btnConnect, btnCancel;
     private TextView btDeviceTextView;
     private boolean isConnected = false;
@@ -198,7 +221,7 @@ public class MainActivity extends AppCompatActivity{
             String action = intent.getAction();
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                // 检查设备是否是非BLE设备且已经配对
+                // Exclude BLE
                 if (device.getType() != BluetoothDevice.DEVICE_TYPE_LE && device.getBondState() == BluetoothDevice.BOND_BONDED) {
                     if (!bluetoothDevices.contains(device)) {
                         bluetoothDevices.add(device);
@@ -227,19 +250,15 @@ public class MainActivity extends AppCompatActivity{
             BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
 
             if (BluetoothDevice.ACTION_ACL_CONNECTED.equals(action)) {
-                // 设备已连接
+                // Connected
                 Toast.makeText(context, device.getName() + " is connected", Toast.LENGTH_LONG).show();
             } else if (BluetoothDevice.ACTION_ACL_DISCONNECTED.equals(action)) {
-                // 设备已断开
+                // Disconnected
                 Toast.makeText(context, device.getName() + " is disconnected", Toast.LENGTH_LONG).show();
-                // 更新UI
+                // Update UI
                 runOnUiThread(() -> {
-                    // 这里假设btnConnect和btDeviceTextView已经在showDeviceListDialog中初始化
                     isConnected = false;
-                    selectedBluetoothDevice = null; // 如果不再跟踪断开连接的设备
-                    // 可以选择不重置selectedBluetoothDevice，这样用户重新打开对话框时仍然显示之前选中的设备
-
-                    // 这里需要确保这些UI组件已经初始化了
+                    selectedBluetoothDevice = null;
                     if(btnConnect != null && btDeviceTextView != null) {
                         btnConnect.setText("Connect");
                         btDeviceTextView.setText("Please select a device");
@@ -268,7 +287,7 @@ public class MainActivity extends AppCompatActivity{
         btnCancel = dialogView.findViewById(R.id.bt_cancel);
         btDeviceTextView = dialogView.findViewById(R.id.btDevice);
 
-        // 根据当前状态更新文本视图
+        // Update UI according to connection state
         if (isConnected && selectedBluetoothDevice != null) {
             btDeviceTextView.setText("Connected device: " + selectedBluetoothDevice.getName());
         } else if (selectedBluetoothDevice != null) {
@@ -277,7 +296,7 @@ public class MainActivity extends AppCompatActivity{
             btDeviceTextView.setText("Please select a device");
         }
 
-        // 更新连接/断开按钮文本
+        // Update text in UI
         btnConnect.setText(isConnected ? "Disconnect" : "Connect");
 
         AlertDialog dialog = builder.create();
@@ -309,14 +328,18 @@ public class MainActivity extends AppCompatActivity{
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 注销发现设备的广播接收器
+        // Cancel handler
+        handler.removeCallbacks(updateTask);
+        // Deregister the broadcast receiver of the discovery device
         unregisterReceiver(receiver);
-        // 注销蓝牙连接状态变化的广播接收器
+        // Deregistering the radio receiver for Bluetooth connection status changes
         unregisterReceiver(mReceiver);
     }
 
 
-    private class ConnectThread extends Thread { //used to establish connection
+
+    private class ConnectThread extends Thread {
+        // BT connection establishment
         private final BluetoothSocket mmSocket;
 
         @SuppressLint("MissingPermission")
@@ -335,20 +358,16 @@ public class MainActivity extends AppCompatActivity{
             bluetoothAdapter.cancelDiscovery();
             try {
                 mmSocket.connect();
-                bluetoothSocket = mmSocket; // 保存对socket的引用以便以后使用
+                bluetoothSocket = mmSocket; // Save socket for later usage
                 manageConnectedSocket(mmSocket);
-                // 更新UI以反映连接状态
                 runOnUiThread(() -> {
                     if(btnConnect != null && btDeviceTextView != null) {
                         btnConnect.setText("Disconnect");
                         btDeviceTextView.setText("Connected device: " + selectedBluetoothDevice.getName());
-                        isConnected = true; // 更新连接状态
+                        isConnected = true; // Update state
                     }
                 });
-                // Connection was successful. You can now manage your connection.
-
             } catch (IOException connectException) {
-                // 连接失败的处理
                 try {
                     mmSocket.close();
                 } catch (IOException closeException) {
@@ -360,10 +379,9 @@ public class MainActivity extends AppCompatActivity{
     }
 
     private void manageConnectedSocket(BluetoothSocket socket) {
-        // 传递socket到一个新的线程，负责管理连接
+        // Pass the socket to a new thread responsible for managing the connection
         ConnectedThread connectedThread = new ConnectedThread(socket);
         connectedThread.start();
-        // 可以在这里保存connectedThread的引用，以便于后续发送数据
     }
 
     private class ConnectedThread extends Thread { //used to receive data after connection
@@ -374,7 +392,7 @@ public class MainActivity extends AppCompatActivity{
             mmSocket = socket;
             InputStream tmpIn = null;
 
-            // 获取蓝牙socket的输入流
+            // Get the input stream of the Bluetooth socket
             try {
                 tmpIn = socket.getInputStream();
             } catch (IOException e) {
@@ -388,27 +406,32 @@ public class MainActivity extends AppCompatActivity{
             BufferedReader reader = new BufferedReader(new InputStreamReader(mmInStream));
             while (true) {
                 try {
-                    // 读取输入流的下一行
+                    // Read the next line of the input stream
                     String receivedData = reader.readLine();
                     if (receivedData != null && !receivedData.isEmpty()) {
-                        // 在这里，我们假设receivedData是JSON格式的字符串
-                        // 使用JSONObject进行解析，然后创建SineWaveData对象
+                        // ReceivedData is a string in JSON format
+                        // Use JSONObject for parsing and then create the SineWaveData object
                         JSONObject json = new JSONObject(receivedData);
                         SineWaveData data = new SineWaveData(json.getDouble("time"), json.getDouble("value"));
 
-                        // 更新UI（请记住，在UI线程上运行此操作）
-                        runOnUiThread(() -> updateGraph(data));
+                        // UI update should run on the UI thread)
+                        runOnUiThread(() -> {
+                            hasNewData = true;
+                            lastData = data;
+                            updateGraph(data);
+                        });
+
                     }
                 } catch (IOException e) {
                     Log.d(TAG, "Input stream was disconnected", e);
-                    break; // 退出循环，结束线程
+                    break; // End thread
                 } catch (JSONException e) {
                     Log.e(TAG, "Failed to parse data", e);
                 }
             }
         }
 
-        // 调用此方法来关闭线程
+        // Thread cancellation
         public void cancel() {
             try {
                 mmSocket.close();
@@ -418,16 +441,20 @@ public class MainActivity extends AppCompatActivity{
         }
     }
 
-    // 在UI线程上调用此方法来更新图表
+
+    //Updating graph
+    private final Handler handler = new Handler();
+    private Runnable updateTask;
+    private SineWaveData lastData;
+    private boolean hasNewData = false;
     private void updateGraph(SineWaveData data) {
         SineWaveView sineWaveView = findViewById(R.id.sineWaveView);
-        sineWaveView.addData(data); // 假设SineWaveView有一个addData方法来更新图表
+        sineWaveView.addData(data);
     }
 
-// 其他 MainActivity 方法...
 
-
-    private class DisconnectThread extends Thread {   //disconnect logic
+    private class DisconnectThread extends Thread {
+        // BT disconnection
         public void run() {
             try {
                 if (bluetoothSocket != null) {
@@ -437,7 +464,7 @@ public class MainActivity extends AppCompatActivity{
                         if(btnConnect != null && btDeviceTextView != null) {
                             btnConnect.setText("Connect");
                             btDeviceTextView.setText("Please select a device");
-                            isConnected = false; // 更新连接状态
+                            isConnected = false; // Update connection state
                         }
                     });
                 }
@@ -455,9 +482,9 @@ public class MainActivity extends AppCompatActivity{
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_BLUETOOTH_SCAN_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // 权限被授予，可以继续蓝牙扫描
+                // Permission granted
             } else {
-                // 权限被拒绝，向用户解释为什么需要这个权限
+                // Permission declined
                 Toast.makeText(this, "Bluetooth scan permission is required to discover devices", Toast.LENGTH_SHORT).show();
             }
         }

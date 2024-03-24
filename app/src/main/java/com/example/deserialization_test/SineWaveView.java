@@ -20,23 +20,23 @@ public class SineWaveView extends View {
     }
 
     private void init() {
-        paint.setColor(0xFF0077CC); // 蓝色
+        paint.setColor(0xFF0077CC); // Blue
         paint.setStrokeWidth(5);
         paint.setStyle(Paint.Style.STROKE);
     }
 
     public void setDataList(List<SineWaveData> dataList) {
         this.dataList = dataList;
-        invalidate(); // 重新绘制视图
+        invalidate(); // Redraw the view
     }
 
     public void addData(SineWaveData data) {
-        // 如果数据列表超过最大大小，移除最旧的数据点
+        // If the data list exceeds the maximum size, remove the oldest data point
         if (dataList.size() == MAX_DATA_SIZE) {
             dataList.remove(0);
         }
         dataList.add(data);
-        invalidate(); // 通知视图重新绘制
+        invalidate(); // Notify the view to redraw
     }
     @Override
     protected void onDraw(Canvas canvas) {
@@ -45,28 +45,51 @@ public class SineWaveView extends View {
             return;
         }
 
-        // 获取视图的宽度和高度
+        // Define the paint for drawing axes
+        Paint axisPaint = new Paint();
+        axisPaint.setColor(0xFF000000); // Black
+        axisPaint.setStrokeWidth(3);
+        axisPaint.setTextSize(30); // Set text size
+
+        // Get the width and height of the view
         float width = getWidth();
         float height = getHeight();
 
-        // 保持绘图区域横向占据整个屏幕，竖直方向上占据半个屏幕高度
-        float drawingWidth = width; // 横向占据整个屏幕宽度
-        float drawingHeight = height / 2; // 竖直方向上只占据半个屏幕高度
-        float startX = 0; // 绘图起始点X坐标，从屏幕最左侧开始
-        float startY = height / 4; // 绘图起始点Y坐标，使绘图区域在竖直方向上居中
+        // Draw the X axis
+        canvas.drawLine(0, height / 2, width, height / 2, axisPaint);
+        // Draw the Y axis
+        canvas.drawLine(width / 2, 0, width / 2, height, axisPaint);
 
-        // 计算缩放因子以适应绘图区域
-        float scaleX = drawingWidth / (dataList.size() - 1); // 横向缩放因子，确保所有点横向铺满整个屏幕
-        float maxYValue = 50; // 定义sineValue的最大值
-        float scaleY = drawingHeight / (2 * maxYValue); // 纵向缩放因子，考虑到正弦波的最大值为1，最小值为-1
+        // Draw the arrows for the X and Y axes (optional)
+        canvas.drawLine(width, height / 2, width - 20, height / 2 - 10, axisPaint);
+        canvas.drawLine(width, height / 2, width - 20, height / 2 + 10, axisPaint);
+        canvas.drawLine(width / 2, 0, width / 2 - 10, 20, axisPaint);
+        canvas.drawLine(width / 2, 0, width / 2 + 10, 20, axisPaint);
+
+        // Keep the drawing area to span the entire screen width and half the screen height vertically
+        float drawingWidth = width; // Span the entire screen width horizontally
+        float drawingHeight = height / 2; // Vertically, occupy only half the screen height
+        float startX = 0; // Drawing start X coordinate, starting from the screen's left edge
+        float startY = height / 4; // Drawing start Y coordinate, centering the drawing area vertically
+
+        String originLabel = "(0,0)";
+        // Calculate the text width to center it
+        float textWidth = axisPaint.measureText(originLabel);
+        // Draw the text label below and to the left of the origin
+        canvas.drawText(originLabel, width / 2 - textWidth - 10, height / 2 + axisPaint.getTextSize() + 5, axisPaint);
+
+        // Calculate scaling factors to fit the drawing area
+        float scaleX = drawingWidth / (dataList.size() - 1); // Horizontal scaling factor to ensure points span the entire screen width
+        float maxYValue = 50; // Define the maximum value for sineValue
+        float scaleY = drawingHeight / (2 * maxYValue); // Vertical scaling factor, considering the sine wave's maximum and minimum values of 1 and -1, respectively
 
         float lastX = -1;
         float lastY = -1;
 
         for (int i = 0; i < dataList.size(); i++) {
             SineWaveData data = dataList.get(i);
-            float x = startX + i * scaleX; // 考虑绘图起始点
-            // 假设sineValue的范围为[-1, 1]，将其映射到绘图区域的高度
+            float x = startX + i * scaleX; // Considering the drawing start point
+            // Assuming the range of sineValue is [-1, 1], map it to the height of the drawing area
             float y = startY + drawingHeight / 2 - (float) (data.getSineValue() * scaleY);
 
             if (lastX != -1 && lastY != -1) {
