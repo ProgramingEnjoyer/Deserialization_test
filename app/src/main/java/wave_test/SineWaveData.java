@@ -26,23 +26,9 @@ public class SineWaveData implements Serializable {
         return sineValue;
     }
 
-    // Optional: Setter method to set the timestamp
+    // Setter method to set the timestamp
     public void setTime(double time) {
         this.time = time;
-    }
-
-    // Optional: Setter method to set the sine wave value
-    public void setSineValue(double sineValue) {
-        this.sineValue = sineValue;
-    }
-
-    // Optional: toString method to print object information, useful for debugging
-    @Override
-    public String toString() {
-        return "SineWaveData{" +
-                "time=" + time +
-                ", sineValue=" + sineValue +
-                '}';
     }
 
 }
