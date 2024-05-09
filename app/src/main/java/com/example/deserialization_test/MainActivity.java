@@ -1,4 +1,9 @@
 package com.example.deserialization_test;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothProfile;
 import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.view.LayoutInflater;
@@ -40,6 +45,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,7 +56,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity{
-
+    private static final UUID SERVICE_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
+    private static final UUID CHARACTERISTIC_UUID = UUID.fromString("00002A3D-0000-1000-8000-00805F9B34FB");
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -184,6 +191,9 @@ public class MainActivity extends AppCompatActivity{
         }
     }
 
+    // BLE Connection
+
+
 
     // Bluetooth Connection
     private BluetoothAdapter bluetoothAdapter;
@@ -221,15 +231,13 @@ public class MainActivity extends AppCompatActivity{
             String action = intent.getAction();
             if (BluetoothDevice.ACTION_FOUND.equals(action)) {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                // Exclude BLE
-                if (device.getType() != BluetoothDevice.DEVICE_TYPE_LE && device.getBondState() == BluetoothDevice.BOND_BONDED) {
-                    if (!bluetoothDevices.contains(device)) {
-                        bluetoothDevices.add(device);
-                        String deviceInfo = device.getName() + "\n" + device.getAddress();
-                        devicesArrayAdapter.add(deviceInfo);
-                        Log.d("MainActivity", "Paired non-BLE device added: " + deviceInfo);
-                        devicesArrayAdapter.notifyDataSetChanged();
-                    }
+                // Include BLE
+                if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
+                    bluetoothDevices.add(device);
+                    String deviceInfo = device.getName() + "\n" + device.getAddress();
+                    devicesArrayAdapter.add(deviceInfo);
+                    Log.d("MainActivity", "Device added: " + deviceInfo);
+                    devicesArrayAdapter.notifyDataSetChanged();
                 }
             }
         }
@@ -271,11 +279,38 @@ public class MainActivity extends AppCompatActivity{
 
     @SuppressLint("MissingPermission")
     private void discoverDevices() {
+        // Clear the previous list of devices
+        bluetoothDevices.clear();
+        devicesArrayAdapter.clear();
+
         if (bluetoothAdapter.isDiscovering()) {
-            bluetoothAdapter.cancelDiscovery();
+            bluetoothAdapter.cancelDiscovery(); // Cancel any existing discovery process
         }
+
+        // Start discovery for classic Bluetooth devices and BLE devices
         bluetoothAdapter.startDiscovery();
+        bluetoothAdapter.startLeScan(new BluetoothAdapter.LeScanCallback() {
+            @Override
+            public void onLeScan(final BluetoothDevice device, int rssi, byte[] scanRecord) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        // Add the device if it's not already in the list to avoid duplicates
+                        if (!bluetoothDevices.contains(device)) {
+                            bluetoothDevices.add(device);
+                            String deviceInfo = device.getName() + "\n" + device.getAddress();
+                            devicesArrayAdapter.add(deviceInfo);
+                            Log.d("MainActivity", "Adding BLE device: " + deviceInfo);
+                            devicesArrayAdapter.notifyDataSetChanged(); // Update the ListView with new data
+                        }
+                    }
+                });
+            }
+        });
     }
+
+
+
 
     @SuppressLint("MissingPermission")
     private void showDeviceListDialog() {
@@ -337,46 +372,126 @@ public class MainActivity extends AppCompatActivity{
     }
 
 
-
+    private BluetoothGatt bluetoothGatt; // Used in ConnectThread & DisconnectThread
     private class ConnectThread extends Thread {
-        // BT connection establishment
-        private final BluetoothSocket mmSocket;
-
-        @SuppressLint("MissingPermission")
+        private final BluetoothDevice mmDevice; // BluetoothDevice variable
+        private BluetoothSocket mmSocket;
         public ConnectThread(BluetoothDevice device) {
-            BluetoothSocket tmp = null;
-            try {
-                tmp = device.createRfcommSocketToServiceRecord(MY_UUID);
-            } catch (IOException e) {
-                Log.e(TAG, "Socket's create() method failed", e);
-            }
-            mmSocket = tmp;
+            this.mmDevice = device;
         }
 
         @SuppressLint("MissingPermission")
         public void run() {
-            bluetoothAdapter.cancelDiscovery();
-            try {
-                mmSocket.connect();
-                bluetoothSocket = mmSocket; // Save socket for later usage
-                manageConnectedSocket(mmSocket);
-                runOnUiThread(() -> {
-                    if(btnConnect != null && btDeviceTextView != null) {
-                        btnConnect.setText("Disconnect");
-                        btDeviceTextView.setText("Connected device: " + selectedBluetoothDevice.getName());
-                        isConnected = true; // Update state
+            if (mmDevice.getType() == BluetoothDevice.DEVICE_TYPE_LE) {
+                // BLE device, use GATT to connect
+                bluetoothAdapter.cancelDiscovery();
+                bluetoothGatt = mmDevice.connectGatt(MainActivity.this, false, new BluetoothGattCallback() {
+                    @Override
+                    public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                        super.onConnectionStateChange(gatt, status, newState);
+                        if (newState == BluetoothProfile.STATE_CONNECTED) {
+                            Log.i(TAG, "Connected to GATT server.");
+                            gatt.discoverServices(); // Start service discovery
+
+                            runOnUiThread(() -> {
+                                if (btnConnect != null && btDeviceTextView != null) {
+                                    btnConnect.setText("Disconnect");
+                                    btDeviceTextView.setText("Connected device: " + mmDevice.getName());
+                                    isConnected = true;
+                                }
+                            });
+                        } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                            Log.i(TAG, "Disconnected from GATT server.");
+
+                            runOnUiThread(() -> {
+                                if (btnConnect != null && btDeviceTextView != null) {
+                                    btnConnect.setText("Connect");
+                                    btDeviceTextView.setText("Please select a device");
+                                    isConnected = false;
+                                }
+                            });
+                        }
                     }
+
+                    @Override
+                    public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                        super.onServicesDiscovered(gatt, status);
+                        String message;
+                        if (status == BluetoothGatt.GATT_SUCCESS) {
+                            BluetoothGattService service = gatt.getService(SERVICE_UUID);
+                            if (service != null) {
+                                BluetoothGattCharacteristic characteristic = service.getCharacteristic(CHARACTERISTIC_UUID);
+                                if (characteristic != null) {
+                                    gatt.readCharacteristic(characteristic); // Read the characteristic
+                                    message = "Service and characteristic UUID found.";
+                                } else {
+                                    message = "Characteristic UUID not found.";
+                                }
+                            } else {
+                                message = "Service UUID not found.";
+                            }
+                        } else {
+                            message = "onServicesDiscovered received: " + status;
+                        }
+                    }
+
+
+                    @Override
+                    public void onCharacteristicRead(BluetoothGatt gatt,
+                                                     BluetoothGattCharacteristic characteristic,
+                                                     int status) {
+                        super.onCharacteristicRead(gatt, characteristic, status);
+                        String message;
+                        if (status == BluetoothGatt.GATT_SUCCESS) {
+                            String hexValue = bytesToHex(characteristic.getValue());
+                            Log.i(TAG, "Characteristic value read: " + hexValue);
+                            message = "Characteristic value read: " + hexValue;
+                            handleCharacteristicRead(characteristic.getValue());
+                        } else {
+                            message = "Failed to read characteristic value with status: " + status;
+                        }
+                        runOnUiThread(() -> showAlertDialog("Characteristic Read", message));
+                    }
+
                 });
-            } catch (IOException connectException) {
-                try {
-                    mmSocket.close();
-                } catch (IOException closeException) {
-                    Log.e(TAG, "Could not close the client socket", closeException);
-                }
+            } else {
+                // Classic Bluetooth, handle differently
             }
         }
+        private String bytesToHex(byte[] bytes) {
+            StringBuilder sb = new StringBuilder();
+            for (byte b : bytes) {
+                sb.append(String.format("%02X ", b));
+            }
+            return sb.toString().trim();
+        }
 
+        private void handleDisconnect() {
+            runOnUiThread(() -> {
+                if (btnConnect != null && btDeviceTextView != null) {
+                    btnConnect.setText("Connect");
+                    btDeviceTextView.setText("Please select a device");
+                    isConnected = false;
+                }
+            });
+        }
+
+        private void handleCharacteristicRead(byte[] value) {
+            runOnUiThread(() -> {
+                // Update UI or handle data read from characteristic
+            });
+        }
     }
+
+    private void showAlertDialog(String title, String message) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(title);
+        builder.setMessage(message);
+        builder.setPositiveButton("OK", (dialog, which) -> dialog.dismiss());
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
 
     private void manageConnectedSocket(BluetoothSocket socket) {
         // Pass the socket to a new thread responsible for managing the connection
@@ -454,26 +569,36 @@ public class MainActivity extends AppCompatActivity{
 
 
     private class DisconnectThread extends Thread {
-        // BT disconnection
         public void run() {
-            try {
-                if (bluetoothSocket != null) {
-                    bluetoothSocket.close();
+            if (bluetoothGatt != null) {
+                bluetoothGatt.disconnect();  // 断开GATT连接
+                bluetoothGatt.close();      // 释放资源
+                bluetoothGatt = null;       // 清除引用
+                runOnUiThread(() -> {
+                    if (btnConnect != null && btDeviceTextView != null) {
+                        btnConnect.setText("Connect");
+                        btDeviceTextView.setText("Please select a device");
+                        isConnected = false; // 更新连接状态
+                    }
+                });
+            } else if (bluetoothSocket != null) {
+                try {
+                    bluetoothSocket.close();  // 关闭传统蓝牙连接
                     bluetoothSocket = null;
                     runOnUiThread(() -> {
-                        if(btnConnect != null && btDeviceTextView != null) {
+                        if (btnConnect != null && btDeviceTextView != null) {
                             btnConnect.setText("Connect");
                             btDeviceTextView.setText("Please select a device");
-                            isConnected = false; // Update connection state
+                            isConnected = false; // 更新连接状态
                         }
                     });
+                } catch (IOException e) {
+                    Log.e(TAG, "Could not close the client socket", e);
                 }
-            } catch (IOException e) {
-                Log.e(TAG, "Could not close the client socket", e);
             }
         }
-
     }
+
 
 
 

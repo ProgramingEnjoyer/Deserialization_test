@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:orientation="vertical"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="match_parent">
 
     <LinearLayout
-        android:id="@+id/deviceLinearLayout"
+        android:id="@+id/headerLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="12dp">
+        android:padding="12dp"
+        android:layout_alignParentTop="true">
 
         <ImageView
             android:id="@+id/bluetoothLogo"
@@ -42,15 +42,18 @@
     <ListView
         android:id="@+id/device_list"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-    </ListView>
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/headerLayout"
+        android:layout_above="@+id/bottomLayout" />
 
     <LinearLayout
+        android:id="@+id/bottomLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center"
-        android:layout_marginTop="@dimen/button_margin">
+        android:layout_marginTop="@dimen/button_margin"
+        android:layout_alignParentBottom="true">
 
         <Button
             android:id="@+id/bt_cancel"
@@ -70,4 +73,4 @@
             android:padding="@dimen/button_padding"/>
     </LinearLayout>
 
-</LinearLayout>
+</RelativeLayout>
