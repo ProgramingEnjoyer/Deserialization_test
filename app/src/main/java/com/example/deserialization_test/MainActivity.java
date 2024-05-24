@@ -69,10 +69,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Load data Initialisation
-        Button loadDataButton = findViewById(R.id.loadDataButton);
-        loadDataButton.setOnClickListener(v -> loadData());
-
         // BT Connection Initialisation
         Button BluetoothButton = findViewById(R.id.BluetoothButton);
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
@@ -97,52 +93,6 @@ public class MainActivity extends AppCompatActivity {
 
         // Timed task for graph update
         handler.post(updateTask);
-    }
-
-    // Load data functions
-    private final ActivityResultLauncher<Intent> openDocument = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == AppCompatActivity.RESULT_OK && result.getData() != null) {
-                    Uri uri = result.getData().getData();
-                    loadData(uri);
-                }
-            });
-
-    private void loadData() {
-        // Load data from .ser file in phone
-        if (!hasManageExternalStoragePermission()) {
-            requestManageExternalStoragePermission();
-        } else {
-            // Open selector
-            openFilePicker();
-        }
-    }
-
-    private boolean hasManageExternalStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            return Environment.isExternalStorageManager();
-        }
-        return true; // Before Android 11, no need for the manage external storage permission.
-    }
-
-    private void requestManageExternalStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-            Uri uri = Uri.fromParts("package", getPackageName(), null);
-            intent.setData(uri);
-            startActivity(intent);
-        } else {
-            // No action needed for versions before Android 11.
-            openFilePicker();
-        }
-    }
-
-    public void openFilePicker() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
-        openDocument.launch(intent);
     }
 
     private double[] parseData(byte[] value) {
