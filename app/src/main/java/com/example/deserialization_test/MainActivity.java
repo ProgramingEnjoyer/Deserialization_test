@@ -7,12 +7,10 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothProfile;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.Handler;
 import android.view.LayoutInflater;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-
-import static androidx.constraintlayout.helper.widget.MotionEffect.TAG;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -26,7 +24,6 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.Uri;
@@ -40,6 +37,14 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.androidplot.xy.BoundaryMode;
+import com.androidplot.xy.LineAndPointFormatter;
+import com.androidplot.xy.PanZoom;
+import com.androidplot.xy.SimpleXYSeries;
+import com.androidplot.xy.XYGraphWidget;
+import com.androidplot.xy.XYPlot;
+import com.androidplot.xy.XYSeries;
+
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -47,14 +52,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import wave_test.SineWaveData;
 import android.widget.Button;
 
 import org.json.JSONException;
@@ -64,30 +70,76 @@ public class MainActivity extends AppCompatActivity {
     private static final UUID SERVICE_UUID = UUID.fromString("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
     private static final UUID TX_CHARACTERISTIC_UUID = UUID.fromString("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
     private static final UUID RX_CHARACTERISTIC_UUID = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
-
+    private volatile boolean keepRunning = true;
     private BlockingQueue<byte[]> dataQueue = new LinkedBlockingQueue<>();
     private Handler handler = new Handler();
-    private SineWaveData lastData;
     private boolean hasNewData = false;
+    private volatile byte[] latestData = null;
+    private XYPlot tangentForcePlot;
+    private XYPlot efficiencyPlot;
+    private XYPlot pushArcPlot;
+
+    private SimpleXYSeries series1TangentForce;
+    private SimpleXYSeries series2TangentForce;
+    private SimpleXYSeries series1Efficiency;
+    private SimpleXYSeries series2Efficiency;
+    private SimpleXYSeries series1PushArc;
+    private SimpleXYSeries series2PushArc;
+
+    private LinkedList<Number> currentSeries1TangentForce = new LinkedList<>(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+    private LinkedList<Number> currentSeries2TangentForce = new LinkedList<>(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+    private LinkedList<Number> currentSeries1Efficiency = new LinkedList<>(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+    private LinkedList<Number> currentSeries2Efficiency = new LinkedList<>(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+    private LinkedList<Number> currentSeries1PushArc = new LinkedList<>(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+    private LinkedList<Number> currentSeries2PushArc = new LinkedList<>(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+    private int frame = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Load data Initialisation
-        Button loadDataButton = findViewById(R.id.loadDataButton);
-        loadDataButton.setOnClickListener(v -> loadData());
+        tangentForcePlot = findViewById(R.id.tangentForcePlot);
+        efficiencyPlot = findViewById(R.id.efficiencyPlot);
+        pushArcPlot = findViewById(R.id.pushArcPlot);
 
-        // BT Connection Initialisation
+        setupPlot(tangentForcePlot, "Tangent Force", 0, 70);
+        setupPlot(efficiencyPlot, "Efficiency", 0, 60);
+        setupPlot(pushArcPlot, "Push Arc (Degrees)", 0, 130);
+
+        series1TangentForce = new SimpleXYSeries("Left Wheel");
+        series2TangentForce = new SimpleXYSeries("Right Wheel");
+        series1Efficiency = new SimpleXYSeries("Left Wheel");
+        series2Efficiency = new SimpleXYSeries("Right Wheel");
+        series1PushArc = new SimpleXYSeries("Left Wheel");
+        series2PushArc = new SimpleXYSeries("Right Wheel");
+
+        LineAndPointFormatter formatter1 = new LineAndPointFormatter(
+                Color.RED,
+                Color.RED,
+                null,
+                null
+        );
+        LineAndPointFormatter formatter2 = new LineAndPointFormatter(
+                Color.BLUE,
+                Color.BLUE,
+                null,
+                null
+        );
+
+        tangentForcePlot.addSeries(series1TangentForce, formatter1);
+        tangentForcePlot.addSeries(series2TangentForce, formatter2);
+        efficiencyPlot.addSeries(series1Efficiency, formatter1);
+        efficiencyPlot.addSeries(series2Efficiency, formatter2);
+        pushArcPlot.addSeries(series1PushArc, formatter1);
+        pushArcPlot.addSeries(series2PushArc, formatter2);
+
         Button BluetoothButton = findViewById(R.id.BluetoothButton);
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         checkBluetoothSupport();
 
-        // Device list Initialisation
         devicesArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1);
 
-        // When BT is clicked, show device dialog
         BluetoothButton.setOnClickListener(v -> {
             if (bluetoothAdapter.isEnabled()) {
                 discoverDevices();
@@ -97,91 +149,83 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Register for broadcasts when a device is discovered
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
         registerReceiver(receiver, filter);
-
-        // Timed task for graph update
         handler.post(updateTask);
+        new Thread(new DataUpdateTask()).start();
     }
 
-    // Load data functions
-    private final ActivityResultLauncher<Intent> openDocument = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == AppCompatActivity.RESULT_OK && result.getData() != null) {
-                    Uri uri = result.getData().getData();
-                    loadData(uri);
+    private class DataUpdateTask implements Runnable {
+        @Override
+        public void run() {
+            while (keepRunning) {
+                try {
+                    byte[] value = dataQueue.take();
+                    synchronized (dataQueue) {
+                        latestData = value;
+                    }
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
-            });
-
-    private void loadData() {
-        // Load data from .ser file in phone
-        if (!hasManageExternalStoragePermission()) {
-            requestManageExternalStoragePermission();
-        } else {
-            // Open selector
-            openFilePicker();
-        }
-    }
-
-    private boolean hasManageExternalStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            return Environment.isExternalStorageManager();
-        }
-        return true; // Before Android 11, no need for the manage external storage permission.
-    }
-
-    private void requestManageExternalStoragePermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-            Uri uri = Uri.fromParts("package", getPackageName(), null);
-            intent.setData(uri);
-            startActivity(intent);
-        } else {
-            // No action needed for versions before Android 11.
-            openFilePicker();
-        }
-    }
-
-    public void openFilePicker() {
-        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-        intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("*/*");
-        openDocument.launch(intent);
-    }
-
-    public void loadData(Uri fileUri) {
-        StringBuilder dataString = new StringBuilder();
-
-        try {
-            FileInputStream fileIn = (FileInputStream) getContentResolver().openInputStream(fileUri);
-            ObjectInputStream in = new ObjectInputStream(fileIn);
-
-            List<SineWaveData> dataList = (List<SineWaveData>) in.readObject();
-            in.close();
-            fileIn.close();
-
-            for (SineWaveData data : dataList) {
-                dataString.append("Time: ").append(data.getTime())
-                        .append(", Sine Value: ").append(data.getSineValue()).append("\n");
             }
-            SineWaveView sineWaveView = findViewById(R.id.sineWaveView);
-            sineWaveView.setDataList(dataList);
-
-        } catch (FileNotFoundException e) {
-            Log.e("MainActivity", "File not found", e);
-            Toast.makeText(getApplicationContext(), "File not found", Toast.LENGTH_SHORT).show();
-        } catch (IOException e) {
-            Log.e("MainActivity", "IO Exception", e);
-            Toast.makeText(getApplicationContext(), "IO Exception", Toast.LENGTH_SHORT).show();
-        } catch (ClassNotFoundException e) {
-            Log.e("MainActivity", "Class not found", e);
-            Toast.makeText(getApplicationContext(), "Class not found", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            Log.e("MainActivity", "Error loading data", e);
-            Toast.makeText(getApplicationContext(), "Error loading data", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void setupPlot(XYPlot plot, String title, double minY, double maxY) {
+        plot.setTitle(title);
+        plot.setRangeBoundaries(minY, maxY, BoundaryMode.FIXED);
+        plot.setDomainBoundaries(0, 9, BoundaryMode.FIXED);
+        plot.getGraph().setMarginTop(20);
+        plot.getGraph().setMarginBottom(20);
+        plot.getGraph().setMarginLeft(20);
+        plot.getGraph().setMarginRight(20);
+
+        plot.getGraph().getLineLabelStyle(XYGraphWidget.Edge.LEFT).setFormat(new DecimalFormat("0"));
+
+        plot.getGraph().getLineLabelStyle(XYGraphWidget.Edge.BOTTOM).setFormat(new DecimalFormat("0"));
+
+        PanZoom.attach(plot);
+    }
+
+    private Number[] parseData(byte[] value) {
+        Number[] data = new Number[10];
+        for (int i = 0; i < 10; i++) {
+            long bits = 0;
+            for (int j = 0; j < 8; j++) {
+                bits |= ((long) value[i * 8 + j] & 0xFF) << (8 * (7 - j));
+            }
+            data[i] = Double.longBitsToDouble(bits);
+        }
+        Log.d(TAG, "Parsed data array: " + Arrays.toString(data));
+        return data;
+    }
+
+    private Number[] convertRadToDeg(Number[] data) {
+        Number[] dataInDegrees = data.clone();
+        dataInDegrees[2] = Math.toDegrees(data[2].doubleValue());
+        dataInDegrees[7] = Math.toDegrees(data[7].doubleValue());
+        return dataInDegrees;
+    }
+    private void updateViews(Number[] data) {
+        Log.d(TAG, "Updating views with data: " + Arrays.toString(data));
+        runOnUiThread(() -> {
+            synchronized (dataQueue) {
+                Number[] dataInDegrees = convertRadToDeg(data);
+                updateSeries(currentSeries1TangentForce, series1TangentForce, data[1].floatValue(), tangentForcePlot);
+                updateSeries(currentSeries2TangentForce, series2TangentForce, data[6].floatValue(), tangentForcePlot);
+                updateSeries(currentSeries1Efficiency, series1Efficiency, data[4].floatValue(), efficiencyPlot);
+                updateSeries(currentSeries2Efficiency, series2Efficiency, data[9].floatValue(), efficiencyPlot);
+                updateSeries(currentSeries1PushArc, series1PushArc, dataInDegrees[2].floatValue(), pushArcPlot);
+                updateSeries(currentSeries2PushArc, series2PushArc, dataInDegrees[7].floatValue(), pushArcPlot);
+            }
+        });
+    }
+
+    private void updateSeries(LinkedList<Number> currentSeries, SimpleXYSeries series, Number newValue, XYPlot plot) {
+        currentSeries.removeFirst();
+        currentSeries.addLast(newValue);
+        series.setModel(currentSeries, SimpleXYSeries.ArrayFormat.Y_VALS_ONLY);
+        plot.redraw();
     }
 
     // BLE Connection
@@ -202,6 +246,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnConnect, btnCancel;
     private TextView btDeviceTextView;
     private boolean isConnected = false;
+    private static final float EPSILON = 0.0001f;
 
     @SuppressLint("MissingPermission")
     private void checkBluetoothSupport() {
@@ -212,10 +257,6 @@ public class MainActivity extends AppCompatActivity {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
         }
-    }
-    private void updateGraph(SineWaveData data) {
-        SineWaveView sineWaveView = findViewById(R.id.sineWaveView);
-        sineWaveView.addData(data);
     }
 
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -345,22 +386,25 @@ public class MainActivity extends AppCompatActivity {
         btnCancel.setOnClickListener(v -> dialog.dismiss());
         dialog.show();
     }
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Cancel handler
-        handler.removeCallbacks(updateTask);
-        // Deregister the broadcast receiver of the discovery device
+        keepRunning = false; // 停止数据更新线程
+        handler.removeCallbacksAndMessages(null);
         unregisterReceiver(receiver);
-        // Deregistering the radio receiver for Bluetooth connection status changes
         unregisterReceiver(mReceiver);
+
+        if (bluetoothGatt != null) {
+            bluetoothGatt.disconnect();
+            bluetoothGatt.close();
+            bluetoothGatt = null;
+        }
     }
 
     private BluetoothGatt bluetoothGatt; // Used in ConnectThread & DisconnectThread
 
     private class ConnectThread extends Thread {
-        private final BluetoothDevice mmDevice; // BluetoothDevice variable
+        private final BluetoothDevice mmDevice; // BluetoothDevice 变量
 
         public ConnectThread(BluetoothDevice device) {
             this.mmDevice = device;
@@ -369,7 +413,7 @@ public class MainActivity extends AppCompatActivity {
         @SuppressLint("MissingPermission")
         public void run() {
             if (mmDevice.getType() == BluetoothDevice.DEVICE_TYPE_LE) {
-                // BLE device, use GATT to connect
+                // BLE设备，使用GATT连接
                 bluetoothAdapter.cancelDiscovery();
                 bluetoothGatt = mmDevice.connectGatt(MainActivity.this, false, new BluetoothGattCallback() {
                     @Override
@@ -377,7 +421,7 @@ public class MainActivity extends AppCompatActivity {
                         super.onConnectionStateChange(gatt, status, newState);
                         if (newState == BluetoothProfile.STATE_CONNECTED) {
                             Log.i(TAG, "Connected to GATT server.");
-                            gatt.discoverServices(); // Start service discovery
+                            gatt.discoverServices(); // 开始服务发现
 
                             runOnUiThread(() -> {
                                 if (btnConnect != null && btDeviceTextView != null) {
@@ -389,6 +433,13 @@ public class MainActivity extends AppCompatActivity {
                         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                             Log.i(TAG, "Disconnected from GATT server.");
 
+                            // 处理重新连接尝试
+                            if (status != BluetoothGatt.GATT_SUCCESS) {
+                                handleReconnection(gatt);
+                            } else {
+                                closeGatt(gatt);
+                            }
+
                             runOnUiThread(() -> {
                                 if (btnConnect != null && btDeviceTextView != null) {
                                     btnConnect.setText("Connect");
@@ -397,6 +448,15 @@ public class MainActivity extends AppCompatActivity {
                                 }
                             });
                         }
+                    }
+
+                    private void handleReconnection(BluetoothGatt gatt) {
+                        // Close current GATT
+                        closeGatt(gatt);
+                        runOnUiThread(() -> {
+                            Toast.makeText(MainActivity.this, "Reconnecting...", Toast.LENGTH_SHORT).show();
+                        });
+                        bluetoothGatt = mmDevice.connectGatt(MainActivity.this, false, this);
                     }
 
                     @Override
@@ -409,7 +469,6 @@ public class MainActivity extends AppCompatActivity {
                                 BluetoothGattCharacteristic txCharacteristic = service.getCharacteristic(TX_CHARACTERISTIC_UUID);
                                 BluetoothGattCharacteristic rxCharacteristic = service.getCharacteristic(RX_CHARACTERISTIC_UUID);
                                 if (txCharacteristic != null && rxCharacteristic != null) {
-                                    // Enable notifications for TX characteristic
                                     gatt.setCharacteristicNotification(txCharacteristic, true);
                                     BluetoothGattDescriptor descriptor = txCharacteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
                                     if (descriptor != null) {
@@ -427,7 +486,7 @@ public class MainActivity extends AppCompatActivity {
                             message = "onServicesDiscovered received: " + status;
                         }
                         Log.i(TAG, message);
-                        runOnUiThread(() -> showAlertDialog("Service Discovery", message));
+                        runOnUiThread(() -> showAlertDialog(MainActivity.this, "Service Discovery", message));
                     }
 
                     @Override
@@ -442,15 +501,26 @@ public class MainActivity extends AppCompatActivity {
                         } else {
                             message = "Failed to read characteristic value with status: " + status;
                         }
-                        runOnUiThread(() -> showAlertDialog("Characteristic Read", message));
+                        runOnUiThread(() -> showAlertDialog(MainActivity.this, "Characteristic Read", message));
                     }
+                    private void showAlertDialog(Context context, String title, String message) {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(context);
+                        builder.setTitle(title);
+                        builder.setMessage(message);
+                        builder.setPositiveButton("OK", (dialog, which) -> dialog.dismiss());
+                        AlertDialog dialog = builder.create();
+                        dialog.show();
+                    }
+
 
                     @Override
                     public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
                         super.onCharacteristicChanged(gatt, characteristic);
                         byte[] value = characteristic.getValue();
                         Log.d(TAG, "Received data: " + bytesToHex(value));
-                        dataQueue.add(characteristic.getValue());
+                        Number[] data = parseData(value);
+                        Log.d(TAG, "Parsed data: " + Arrays.toString(data));
+                        runOnUiThread(() -> updateViews(data));
                     }
 
                     private String bytesToHex(byte[] bytes) {
@@ -463,44 +533,42 @@ public class MainActivity extends AppCompatActivity {
 
                     private void handleCharacteristicRead(byte[] value) {
                         runOnUiThread(() -> {
-                            // Update UI or handle data read from characteristic
-                            // Example: Parse the data and update the graph
-                            try {
-                                String receivedData = new String(value);
-                                JSONObject json = new JSONObject(receivedData);
-                                SineWaveData data = new SineWaveData(json.getDouble("time"), json.getDouble("value"));
-                                hasNewData = true;
-                                lastData = data;
-                                updateGraph(data);
-                            } catch (JSONException e) {
-                                Log.e(TAG, "Failed to parse data", e);
-                            }
+                            // update UI
+                            Number[] data = parseData(value);
+                            updateViews(data);
                         });
+                    }
+
+                    private void closeGatt(BluetoothGatt gatt) {
+                        if (gatt != null) {
+                            gatt.disconnect();
+                            gatt.close();
+                        }
                     }
                 });
             } else {
-                // Classic Bluetooth, handle differently
+                // Classical BT
+                BluetoothSocket tmp = null;
+                try {
+                    tmp = mmDevice.createRfcommSocketToServiceRecord(MY_UUID);
+                } catch (IOException e) {
+                    Log.e(TAG, "Socket's create() method failed", e);
+                }
+                bluetoothSocket = tmp;
+                bluetoothAdapter.cancelDiscovery();
+                try {
+                    bluetoothSocket.connect();
+                    manageConnectedSocket(bluetoothSocket);
+                } catch (IOException connectException) {
+                    try {
+                        bluetoothSocket.close();
+                    } catch (IOException closeException) {
+                        Log.e(TAG, "Could not close the client socket", closeException);
+                    }
+                    return;
+                }
             }
         }
-
-        private void handleDisconnect() {
-            runOnUiThread(() -> {
-                if (btnConnect != null && btDeviceTextView != null) {
-                    btnConnect.setText("Connect");
-                    btDeviceTextView.setText("Please select a device");
-                    isConnected = false;
-                }
-            });
-        }
-    }
-
-    private void showAlertDialog(String title, String message) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(title);
-        builder.setMessage(message);
-        builder.setPositiveButton("OK", (dialog, which) -> dialog.dismiss());
-        AlertDialog dialog = builder.create();
-        dialog.show();
     }
 
     private void manageConnectedSocket(BluetoothSocket socket) {
@@ -509,7 +577,7 @@ public class MainActivity extends AppCompatActivity {
         connectedThread.start();
     }
 
-    private class ConnectedThread extends Thread { // used to receive data after connection
+    private class ConnectedThread extends Thread {
         private final BluetoothSocket mmSocket;
         private final InputStream mmInStream;
 
@@ -517,13 +585,11 @@ public class MainActivity extends AppCompatActivity {
             mmSocket = socket;
             InputStream tmpIn = null;
 
-            // Get the input stream of the Bluetooth socket
             try {
                 tmpIn = socket.getInputStream();
             } catch (IOException e) {
                 Log.e(TAG, "Error occurred when creating input stream", e);
             }
-
             mmInStream = tmpIn;
         }
 
@@ -531,31 +597,19 @@ public class MainActivity extends AppCompatActivity {
             BufferedReader reader = new BufferedReader(new InputStreamReader(mmInStream));
             while (true) {
                 try {
-                    // Read the next line of the input stream
                     String receivedData = reader.readLine();
                     if (receivedData != null && !receivedData.isEmpty()) {
-                        // ReceivedData is a string in JSON format
-                        // Use JSONObject for parsing and then create the SineWaveData object
-                        JSONObject json = new JSONObject(receivedData);
-                        SineWaveData data = new SineWaveData(json.getDouble("time"), json.getDouble("value"));
-
-                        // UI update should run on the UI thread
-                        runOnUiThread(() -> {
-                            hasNewData = true;
-                            lastData = data;
-                            updateGraph(data);
-                        });
+                        byte[] bytes = receivedData.getBytes();
+                        Number[] data = parseData(bytes);
+                        runOnUiThread(() -> updateViews(data));
                     }
                 } catch (IOException e) {
                     Log.d(TAG, "Input stream was disconnected", e);
-                    break; // End thread
-                } catch (JSONException e) {
-                    Log.e(TAG, "Failed to parse data", e);
+                    break;
                 }
             }
         }
 
-        // Thread cancellation
         public void cancel() {
             try {
                 mmSocket.close();
@@ -565,50 +619,39 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Updating graph
     private Runnable updateTask = new Runnable() {
         @Override
         public void run() {
-            byte[] value;
-            while ((value = dataQueue.poll()) != null) {
-                // Handle each data value from the queue
-                try {
-                    String receivedData = new String(value);
-                    JSONObject json = new JSONObject(receivedData);
-                    SineWaveData data = new SineWaveData(json.getDouble("time"), json.getDouble("value"));
-                    hasNewData = true;
-                    lastData = data;
-                    updateGraph(data);
-                } catch (JSONException e) {
-                    Log.e(TAG, "Failed to parse data", e);
-                }
+            if (latestData != null) {
+                Number[] data = parseData(latestData);
+                updateViews(data);
             }
-            handler.postDelayed(this, 1000); // Update every second
+            handler.postDelayed(this, 500); // Update every x seconds
         }
     };
 
     private class DisconnectThread extends Thread {
         public void run() {
             if (bluetoothGatt != null) {
-                bluetoothGatt.disconnect(); // 断开GATT连接
-                bluetoothGatt.close(); // 释放资源
-                bluetoothGatt = null; // 清除引用
+                bluetoothGatt.disconnect();
+                bluetoothGatt.close();
+                bluetoothGatt = null;
                 runOnUiThread(() -> {
                     if (btnConnect != null && btDeviceTextView != null) {
                         btnConnect.setText("Connect");
                         btDeviceTextView.setText("Please select a device");
-                        isConnected = false; // 更新连接状态
+                        isConnected = false;
                     }
                 });
             } else if (bluetoothSocket != null) {
                 try {
-                    bluetoothSocket.close(); // 关闭传统蓝牙连接
+                    bluetoothSocket.close();
                     bluetoothSocket = null;
                     runOnUiThread(() -> {
                         if (btnConnect != null && btDeviceTextView != null) {
                             btnConnect.setText("Connect");
                             btDeviceTextView.setText("Please select a device");
-                            isConnected = false; // 更新连接状态
+                            isConnected = false;
                         }
                     });
                 } catch (IOException e) {
