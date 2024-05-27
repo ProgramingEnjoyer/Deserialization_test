@@ -1,43 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     tools:context=".MainActivity">
 
-    <!-- 最上面的按钮部分 -->
-    <LinearLayout
-        android:layout_width="match_parent"
+    <Button
+        android:id="@+id/BluetoothButton"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_horizontal">
+        android:text="Bluetooth"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="8dp"/>
 
-        <Button
-            android:id="@+id/BluetoothButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Bluetooth" />
-    </LinearLayout>
-
-    <!-- 三个绘图部分 -->
-    <com.example.deserialization_test.TangentForceView
-        android:id="@+id/tangentForceView"
-        android:layout_width="match_parent"
+    <com.androidplot.xy.XYPlot
+        android:id="@+id/tangentForcePlot"
+        android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        style = "@style/APDefacto.Light"
+        app:layout_constraintTop_toBottomOf="@id/BluetoothButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/efficiencyPlot"
+        app:layout_constraintHeight_default="percent"
+        app:layout_constraintHeight_percent="0.3"
+        android:layout_marginTop="8dp"/>
 
-    <com.example.deserialization_test.EfficiencyView
-        android:id="@+id/efficiencyView"
-        android:layout_width="match_parent"
+    <com.androidplot.xy.XYPlot
+        android:id="@+id/efficiencyPlot"
+        android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        style = "@style/APDefacto.Light"
+        app:layout_constraintTop_toBottomOf="@id/tangentForcePlot"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/pushArcPlot"
+        app:layout_constraintHeight_default="percent"
+        app:layout_constraintHeight_percent="0.3"/>
 
-    <com.example.deserialization_test.PushArcView
-        android:id="@+id/pushArcView"
-        android:layout_width="match_parent"
+    <com.androidplot.xy.XYPlot
+        android:id="@+id/pushArcPlot"
+        android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        style = "@style/APDefacto.Light"
+        app:layout_constraintTop_toBottomOf="@id/efficiencyPlot"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHeight_default="percent"
+        app:layout_constraintHeight_percent="0.3"
+        android:layout_marginBottom="8dp"/>
 
-</LinearLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
