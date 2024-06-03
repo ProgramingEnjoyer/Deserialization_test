@@ -404,7 +404,7 @@ public class MainActivity extends AppCompatActivity {
     private BluetoothGatt bluetoothGatt; // Used in ConnectThread & DisconnectThread
 
     private class ConnectThread extends Thread {
-        private final BluetoothDevice mmDevice; // BluetoothDevice 变量
+        private final BluetoothDevice mmDevice; // BluetoothDevice
 
         public ConnectThread(BluetoothDevice device) {
             this.mmDevice = device;
@@ -413,7 +413,7 @@ public class MainActivity extends AppCompatActivity {
         @SuppressLint("MissingPermission")
         public void run() {
             if (mmDevice.getType() == BluetoothDevice.DEVICE_TYPE_LE) {
-                // BLE设备，使用GATT连接
+                // BLE device, connected with GATT
                 bluetoothAdapter.cancelDiscovery();
                 bluetoothGatt = mmDevice.connectGatt(MainActivity.this, false, new BluetoothGattCallback() {
                     @Override
@@ -421,7 +421,7 @@ public class MainActivity extends AppCompatActivity {
                         super.onConnectionStateChange(gatt, status, newState);
                         if (newState == BluetoothProfile.STATE_CONNECTED) {
                             Log.i(TAG, "Connected to GATT server.");
-                            gatt.discoverServices(); // 开始服务发现
+                            gatt.discoverServices();
 
                             runOnUiThread(() -> {
                                 if (btnConnect != null && btDeviceTextView != null) {
@@ -433,7 +433,7 @@ public class MainActivity extends AppCompatActivity {
                         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                             Log.i(TAG, "Disconnected from GATT server.");
 
-                            // 处理重新连接尝试
+                            // Handle reconnection
                             if (status != BluetoothGatt.GATT_SUCCESS) {
                                 handleReconnection(gatt);
                             } else {
