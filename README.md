@@ -1,41 +1,104 @@
-# Application Features and Usage Guide
 
-This document outlines the key features, usage, and development insights for the application designed to connect to Bluetooth devices, visualize data, and handle file selection and permissions effectively.
+# Deserialization Test Project
+
+This project demonstrates the implementation of a Bluetooth-based application on Android that connects to Bluetooth Low Energy (BLE) devices and classic Bluetooth devices. The application collects and processes data, displaying it in real-time on three plots: Tangent Force, Efficiency, and Push Arc.
+
+## Table of Contents
+
+-   [Features](#features)
+-   [Getting Started](#getting-started)
+    -   [Prerequisites](#prerequisites)
+    -   [Installation](#installation)
+-   [Usage](#usage)
+-   [Plotting](#plotting)
+-   [Bluetooth Connection Management](#bluetooth-connection-management)
+-   [Permissions](#permissions)
+-   [License](#license)
 
 ## Features
 
-- **Bluetooth Connectivity:** Enables connection to nearby Bluetooth devices, displays a list of available devices, and manages connections.
-- **Data Visualization:** Offers a custom view that dynamically updates to visualize data as new data points are received or loaded.
-- **File Selection and Deserialization:** Utilizes the system's file picker to select files and deserialize content for displaying sine wave data.
-- **Permissions Handling:** Manages necessary permissions for Bluetooth connectivity and file access, including managing external storage on devices running Android 11 and above.
+-   Connects to both BLE and classic Bluetooth devices.
+-   Discovers nearby Bluetooth devices.
+-   Reads and processes data from connected devices.
+-   Displays data on three plots (Tangent Force, Efficiency, Push Arc) using `AndroidPlot`.
+-   Handles reconnections and disconnections gracefully.
+
+## Getting Started
+
+### Prerequisites
+
+Ensure you have the following tools and libraries installed:
+
+-   Android Studio
+-   Android SDK
+-   Bluetooth-enabled Android device
+
+### Installation
+
+1.  **Clone the repository:**
+2.  **Open the project in Android Studio:**
+    
+    -   Launch Android Studio.
+    -   Select "Open an existing Android Studio project".
+    -   Navigate to the cloned repository and select it.
+3.  **Build the project:**
+    
+    -   Allow Android Studio to install any necessary dependencies.
+    -   Build the project by selecting `Build > Make Project`.
+4.  **Run the project:**
+    
+    -   Connect your Android device via USB.
+    -   Select your device in the Android Studio toolbar.
+    -   Click the `Run` button.
 
 ## Usage
 
-### Bluetooth Connection
+1.  **Enable Bluetooth:**
+    
+    -   Ensure Bluetooth is enabled on your Android device.
+2.  **Discover Devices:**
+    
+    -   Click the `Bluetooth` button.
+    -   The app will start discovering nearby Bluetooth devices.
+3.  **Select and Connect to a Device:**
+    
+    -   Select a device from the list of discovered devices.
+    -   Click `Connect` to establish a connection.
+4.  **View Data:**
+    
+    -   The app will display real-time data on the Tangent Force, Efficiency, and Push Arc plots.
 
-- Tap the "Bluetooth" button to start the discovery of nearby Bluetooth devices.
-- Select a device from the list to establish a connection and receive data.
+## Plotting
 
-### Load Data
+The application uses the `AndroidPlot` library to display real-time data on three plots:
 
-- Tap the "Load Data" button to open the file picker.
-- Select a file containing serialized sine wave data (`.ser` extension recommended) to load and visualize the data.
+-   **Tangent Force Plot:** Displays force data.
+-   **Efficiency Plot:** Displays efficiency data.
+-   **Push Arc Plot:** Displays push arc data in degrees.
 
-### Visualize Data
+## Bluetooth Connection Management
 
-- The main screen displays data in a graphical format.
-- New data points from Bluetooth devices or loaded files will update this visualization in real-time.
-
-## Development Components
-
-- **MainActivity:** Manages UI interactions, Bluetooth connectivity, file selection, and deserialization of data.
-- **SineWaveView:** A custom View for drawing data points on the screen.
-- **SineWaveData:** A serializable class representing data points with time and value properties.
+-   **BroadcastReceiver:** Listens for Bluetooth device discovery and connection status changes.
+-   **discoverDevices():** Starts the discovery of Bluetooth devices.
+-   **showDeviceListDialog():** Displays a dialog with the list of discovered devices and manages the connection UI.
+-   **ConnectThread:** Establishes a connection to a selected Bluetooth device.
+-   **ConnectedThread:** Manages the data communication with the connected device.
+-   **DisconnectThread:** Handles disconnection from the device.
 
 ## Permissions
 
 The application requires the following permissions:
 
-- **Bluetooth and Bluetooth Admin:** Necessary for discovering and connecting to Bluetooth devices.
-- **Access Fine Location (Runtime Permission):** Required on some devices for Bluetooth discovery.
-- **Manage External Storage (Android 11+):** Needed to access the file system for loading serialized data files.
+-   **Bluetooth:** To discover and connect to Bluetooth devices.
+-   **Bluetooth Admin:** To manage Bluetooth settings.
+-   **Location:** Required for Bluetooth device discovery on Android 6.0 and above.
+
+Ensure these permissions are requested at runtime for devices running Android 6.0 (API level 23) or higher.
+
+## License
+
+This project is licensed under the MIT License. See the LICENSE file for more details.
+
+----------
+
+Feel free to contribute to the project by opening issues or submitting pull requests. For any questions, contact rmhkjme@ucl.ac.uk
