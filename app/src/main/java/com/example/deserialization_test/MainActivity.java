@@ -103,9 +103,10 @@ public class MainActivity extends AppCompatActivity {
         efficiencyPlot = findViewById(R.id.efficiencyPlot);
         pushArcPlot = findViewById(R.id.pushArcPlot);
 
-        setupPlot(tangentForcePlot, "Tangent Force", 0, 70);
-        setupPlot(efficiencyPlot, "Efficiency", 0, 60);
-        setupPlot(pushArcPlot, "Push Arc (Degrees)", 0, 130);
+        setupPlot(tangentForcePlot, "Tangent Force", 0, 70, true);
+        setupPlot(efficiencyPlot, "Efficiency", 0, 100, false);
+        setupPlot(pushArcPlot, "Push Arc (Degrees)", 0, 180, false);
+
 
         series1TangentForce = new SimpleXYSeries("Left Wheel");
         series2TangentForce = new SimpleXYSeries("Right Wheel");
@@ -171,7 +172,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void setupPlot(XYPlot plot, String title, double minY, double maxY) {
+    private void setupPlot(XYPlot plot, String title, double minY, double maxY, boolean enableZoom) {
         plot.setTitle(title);
         plot.setRangeBoundaries(minY, maxY, BoundaryMode.FIXED);
         plot.setDomainBoundaries(0, 9, BoundaryMode.FIXED);
@@ -181,11 +182,15 @@ public class MainActivity extends AppCompatActivity {
         plot.getGraph().setMarginRight(20);
 
         plot.getGraph().getLineLabelStyle(XYGraphWidget.Edge.LEFT).setFormat(new DecimalFormat("0"));
-
         plot.getGraph().getLineLabelStyle(XYGraphWidget.Edge.BOTTOM).setFormat(new DecimalFormat("0"));
 
-        PanZoom.attach(plot);
+        if (enableZoom) {
+            PanZoom panZoom = PanZoom.attach(plot);
+            panZoom.setPan(PanZoom.Pan.NONE);
+            panZoom.setZoom(PanZoom.Zoom.STRETCH_VERTICAL);
+        }
     }
+
 
     private Number[] parseData(byte[] value) {
         Number[] data = new Number[10];
