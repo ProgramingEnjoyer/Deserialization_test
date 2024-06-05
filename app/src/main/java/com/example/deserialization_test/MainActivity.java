@@ -33,6 +33,7 @@ import android.os.Environment;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -93,6 +94,7 @@ public class MainActivity extends AppCompatActivity {
     private LinkedList<Number> currentSeries1PushArc = new LinkedList<>(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
     private LinkedList<Number> currentSeries2PushArc = new LinkedList<>(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
     private int frame = 0;
+    private Button buttonSetRange;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -103,10 +105,13 @@ public class MainActivity extends AppCompatActivity {
         efficiencyPlot = findViewById(R.id.efficiencyPlot);
         pushArcPlot = findViewById(R.id.pushArcPlot);
 
+        buttonSetRange = findViewById(R.id.buttonSetRange);
+
         setupPlot(tangentForcePlot, "Tangent Force", 0, 70, true);
         setupPlot(efficiencyPlot, "Efficiency", 0, 100, false);
         setupPlot(pushArcPlot, "Push Arc (Degrees)", 0, 180, false);
 
+        buttonSetRange.setOnClickListener(v -> showSetRangeDialog());
 
         series1TangentForce = new SimpleXYSeries("Left Wheel");
         series2TangentForce = new SimpleXYSeries("Right Wheel");
@@ -154,6 +159,41 @@ public class MainActivity extends AppCompatActivity {
         registerReceiver(receiver, filter);
         handler.post(updateTask);
         new Thread(new DataUpdateTask()).start();
+    }
+
+    private void showSetRangeDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_set_range, null);
+        builder.setView(dialogView);
+
+        EditText editTextMinY = dialogView.findViewById(R.id.editTextMinY);
+        EditText editTextMaxY = dialogView.findViewById(R.id.editTextMaxY);
+        Button buttonCancel = dialogView.findViewById(R.id.buttonCancel);
+        Button buttonOk = dialogView.findViewById(R.id.buttonOk);
+
+        AlertDialog dialog = builder.create();
+
+        buttonCancel.setOnClickListener(v -> dialog.dismiss());
+
+        buttonOk.setOnClickListener(v -> {
+            String minYString = editTextMinY.getText().toString();
+            String maxYString = editTextMaxY.getText().toString();
+
+            if (!minYString.isEmpty() && !maxYString.isEmpty()) {
+                double minY = Double.parseDouble(minYString);
+                double maxY = Double.parseDouble(maxYString);
+
+                tangentForcePlot.setRangeBoundaries(minY, maxY, BoundaryMode.FIXED);
+                tangentForcePlot.redraw();
+            } else {
+                Toast.makeText(this, "Please enter valid min and max values", Toast.LENGTH_SHORT).show();
+            }
+
+            dialog.dismiss();
+        });
+
+        dialog.show();
     }
 
     private class DataUpdateTask implements Runnable {

@@ -6,6 +6,7 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
+    <!-- Bluetooth Button -->
     <Button
         android:id="@+id/BluetoothButton"
         android:layout_width="wrap_content"
@@ -13,45 +14,60 @@
         android:text="Bluetooth"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="8dp"/>
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="16dp" />
 
+    <!-- Set Range Button -->
+    <Button
+        android:id="@+id/buttonSetRange"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Set Tangent Force Range"
+        app:layout_constraintTop_toTopOf="@id/BluetoothButton"
+        app:layout_constraintBottom_toBottomOf="@id/BluetoothButton"
+        app:layout_constraintStart_toEndOf="@id/BluetoothButton"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp" />
+
+    <!-- Tangent Force Plot -->
     <com.androidplot.xy.XYPlot
         android:id="@+id/tangentForcePlot"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        style = "@style/APDefacto.Light"
+        style="@style/APDefacto.Light"
         app:layout_constraintTop_toBottomOf="@id/BluetoothButton"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@+id/efficiencyPlot"
+        app:layout_constraintBottom_toTopOf="@id/efficiencyPlot"
         app:layout_constraintHeight_default="percent"
         app:layout_constraintHeight_percent="0.3"
-        android:layout_marginTop="8dp"/>
+        android:layout_marginTop="8dp" />
 
+    <!-- Efficiency Plot -->
     <com.androidplot.xy.XYPlot
         android:id="@+id/efficiencyPlot"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        style = "@style/APDefacto.Light"
+        style="@style/APDefacto.Light"
         app:layout_constraintTop_toBottomOf="@id/tangentForcePlot"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@+id/pushArcPlot"
+        app:layout_constraintBottom_toTopOf="@id/pushArcPlot"
         app:layout_constraintHeight_default="percent"
-        app:layout_constraintHeight_percent="0.3"/>
+        app:layout_constraintHeight_percent="0.3" />
 
+    <!-- Push Arc Plot -->
     <com.androidplot.xy.XYPlot
         android:id="@+id/pushArcPlot"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        style = "@style/APDefacto.Light"
+        style="@style/APDefacto.Light"
         app:layout_constraintTop_toBottomOf="@id/efficiencyPlot"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintHeight_default="percent"
         app:layout_constraintHeight_percent="0.3"
-        android:layout_marginBottom="8dp"/>
+        android:layout_marginBottom="8dp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
