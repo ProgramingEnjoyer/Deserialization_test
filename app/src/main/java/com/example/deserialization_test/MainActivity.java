@@ -95,6 +95,8 @@ public class MainActivity extends AppCompatActivity {
     private LinkedList<Number> currentSeries2PushArc = new LinkedList<>(Arrays.asList(0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
     private int frame = 0;
     private Button buttonSetRange;
+    private TextView leftWheelInfo;
+    private TextView rightWheelInfo;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -107,8 +109,11 @@ public class MainActivity extends AppCompatActivity {
 
         buttonSetRange = findViewById(R.id.buttonSetRange);
 
-        setupPlot(tangentForcePlot, "Tangent Force", 0, 70, true);
-        setupPlot(efficiencyPlot, "Efficiency", 0, 100, false);
+        leftWheelInfo = findViewById(R.id.leftWheelInfo);
+        rightWheelInfo = findViewById(R.id.rightWheelInfo);
+
+        setupPlot(tangentForcePlot, "Tangent Force (N)", 0, 70, true);
+        setupPlot(efficiencyPlot, "Efficiency (%)", 0, 100, false);
         setupPlot(pushArcPlot, "Push Arc (Degrees)", 0, 180, false);
 
         buttonSetRange.setOnClickListener(v -> showSetRangeDialog());
@@ -262,6 +267,12 @@ public class MainActivity extends AppCompatActivity {
                 updateSeries(currentSeries2Efficiency, series2Efficiency, data[9].floatValue(), efficiencyPlot);
                 updateSeries(currentSeries1PushArc, series1PushArc, dataInDegrees[2].floatValue(), pushArcPlot);
                 updateSeries(currentSeries2PushArc, series2PushArc, dataInDegrees[7].floatValue(), pushArcPlot);
+                // Update TextViews with speed and power information
+                String leftWheelText = String.format("Left Wheel: Speed %.2f m/s, Power %.2f W", data[0], data[3]);
+                String rightWheelText = String.format("Right Wheel: Speed %.2f m/s, Power %.2f W", data[5], data[8]);
+
+                leftWheelInfo.setText(leftWheelText);
+                rightWheelInfo.setText(rightWheelText);
             }
         });
     }
@@ -671,7 +682,7 @@ public class MainActivity extends AppCompatActivity {
                 Number[] data = parseData(latestData);
                 updateViews(data);
             }
-            handler.postDelayed(this, 500); // Update every x seconds
+            handler.postDelayed(this, 100); // Update every x seconds
         }
     };
 
